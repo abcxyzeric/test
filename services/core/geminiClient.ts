@@ -164,12 +164,12 @@ export async function generate(prompt: string, systemInstruction?: string): Prom
             }
             continue;
         } else {
-            throw lastError;
+            throw new Error(`AI không thể tạo phản hồi sau ${MAX_RETRIES} lần thử. Lỗi cuối cùng: ${lastError.message}. Gợi ý: Lỗi này có thể do một hoặc nhiều API key trong danh sách của bạn không hợp lệ, hết hạn mức, hoặc chưa kích hoạt thanh toán. Vui lòng kiểm tra lại các key trong mục Cài Đặt.`);
         }
       }
     }
   
-    throw lastError || new Error("AI không thể tạo phản hồi sau nhiều lần thử.");
+    throw lastError || new Error(`AI không thể tạo phản hồi sau ${MAX_RETRIES} lần thử. Vui lòng kiểm tra lại API key và thử lại.`);
 }
 
 export async function generateJson<T>(prompt: string, schema: any, systemInstruction?: string, model: 'gemini-2.5-flash' | 'gemini-2.5-pro' = 'gemini-2.5-flash', overrideConfig?: Partial<AiPerformanceSettings>): Promise<T> {
@@ -241,15 +241,15 @@ export async function generateJson<T>(prompt: string, schema: any, systemInstruc
             }
             continue;
         } else {
-            throw lastError;
+            throw new Error(`AI không thể tạo phản hồi JSON sau ${MAX_RETRIES} lần thử. Lỗi cuối cùng: ${lastError.message}. Gợi ý: Lỗi này có thể do một hoặc nhiều API key trong danh sách của bạn không hợp lệ, hết hạn mức, hoặc chưa kích hoạt thanh toán. Vui lòng kiểm tra lại các key trong mục Cài Đặt.`);
         }
       }
     }
   
-    throw lastError || new Error("AI không thể tạo phản hồi JSON sau nhiều lần thử.");
+    throw lastError || new Error(`AI không thể tạo phản hồi JSON sau ${MAX_RETRIES} lần thử. Vui lòng kiểm tra lại API key và thử lại.`);
 }
 
-export async function generateEmbedding(text: string): Promise<number[]> {
+export async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
     const { apiKeyConfig } = getSettings();
     const keys = apiKeyConfig.keys.filter(Boolean);
     if (keys.length === 0) {
@@ -263,22 +263,22 @@ export async function generateEmbedding(text: string): Promise<number[]> {
             const aiInstance = getAiInstance(); // Rotates key
             const result = await aiInstance.models.embedContent({
                 model: "text-embedding-004",
-                contents: text,
+                contents: texts,
             });
-            const embedding = result.embeddings[0];
-            if (embedding?.values) {
-                return embedding.values;
+            const embeddings = result.embeddings;
+            if (embeddings && embeddings.length === texts.length && embeddings.every(e => e.values)) {
+                return embeddings.map(e => e.values);
             }
-            throw new Error("API không trả về embedding hợp lệ.");
+            throw new Error("API không trả về embeddings hợp lệ cho batch.");
         } catch (error) {
-            console.error(`Error in generateEmbedding attempt ${i + 1}:`, error);
+            console.error(`Error in generateEmbeddingsBatch attempt ${i + 1}:`, error);
             lastError = handleApiError(error, getSettings().safetySettings);
             
             if (i < MAX_RETRIES - 1) {
                 const rawMessage = lastError.message.toLowerCase();
                 if (/429|rate limit|resource_exhausted|503/.test(rawMessage)) {
                     const delay = 1500 * Math.pow(2, i);
-                    console.warn(`Embedding rate limit/server error on attempt ${i + 1}. Retrying in ${delay}ms...`);
+                    console.warn(`Embedding batch rate limit/server error on attempt ${i + 1}. Retrying in ${delay}ms...`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
                 continue;
@@ -287,5 +287,13 @@ export async function generateEmbedding(text: string): Promise<number[]> {
             }
         }
     }
-    throw lastError || new Error("Không thể tạo embedding sau nhiều lần thử.");
+    throw lastError || new Error("Không thể tạo embeddings cho batch sau nhiều lần thử.");
+}
+
+export async function generateEmbedding(text: string): Promise<number[]> {
+    const embeddings = await generateEmbeddingsBatch([text]);
+    if (embeddings.length > 0) {
+        return embeddings[0];
+    }
+    throw new Error("Không thể tạo embedding cho văn bản đơn lẻ.");
 }
