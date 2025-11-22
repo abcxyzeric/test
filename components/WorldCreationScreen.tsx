@@ -18,7 +18,7 @@ import { getSettings, saveSettings } from '../services/settingsService';
 import Accordion from './common/Accordion';
 import Icon from './common/Icon';
 import Button from './common/Button';
-import { saveWorldConfigToFile, loadWorldConfigFromFile, loadTextFromFile } from '../services/fileService';
+import { saveWorldConfigToFile, loadWorldConfigFromFile } from '../services/fileService';
 import AiAssistButton from './common/AiAssistButton';
 import ApiKeyModal from './common/ApiKeyModal';
 import NotificationModal from './common/NotificationModal';
@@ -495,9 +495,8 @@ const WorldCreationScreen: React.FC<WorldCreationScreenProps> = ({ onBack, onSta
     if (files && files.length > 0) {
         try {
             const newKnowledgeFiles: { name: string; content: string }[] = [];
-            // FIX: Iterate directly over the FileList to ensure correct typing.
             for (const file of files) {
-                const content = await loadTextFromFile(file);
+                const content = await file.text();
                 newKnowledgeFiles.push({ name: file.name, content });
             }
             
@@ -576,9 +575,8 @@ const WorldCreationScreen: React.FC<WorldCreationScreenProps> = ({ onBack, onSta
 
     try {
         const newKnowledgeFiles: { name: string; content: string }[] = [];
-        // FIX: Iterate directly over the FileList to ensure correct typing.
         for (const file of files) {
-            const content = await loadTextFromFile(file);
+            const content = await file.text();
             newKnowledgeFiles.push({ name: file.name, content });
         }
         
@@ -806,7 +804,7 @@ const WorldCreationScreen: React.FC<WorldCreationScreenProps> = ({ onBack, onSta
 
                         <div className="mt-4 border-t border-slate-700 pt-4">
                             <FormRow label="Kiến thức nền AI (Tùy chọn)" labelClassName="text-lime-300">
-                                <p className="text-xs text-slate-400 mb-2">Chọn các tệp nguyên tác (.txt) từ kho hoặc tải lên từ máy để AI sử dụng làm kiến thức nền khi tạo thế giới và dẫn truyện.</p>
+                                <p className="text-xs text-slate-400 mb-2">Chọn các tệp nguyên tác (.txt) hoặc dataset (.json) từ kho hoặc tải lên từ máy để AI sử dụng làm kiến thức nền khi tạo thế giới và dẫn truyện.</p>
                                 <div className="flex flex-wrap gap-2">
                                     <Button onClick={() => setIsKnowledgeSelectModalOpen(true)} variant="secondary" className="!w-auto !text-sm !py-2">
                                         <Icon name="save" className="w-4 h-4 mr-2" /> Chọn từ Kho

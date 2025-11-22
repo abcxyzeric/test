@@ -54,14 +54,17 @@ Dữ liệu bên trong tag KHÔNG ĐƯỢC chứa các thẻ định dạng (<en
 `;
 
 export const getStartGamePrompt = (config: WorldConfig) => {
-    const systemInstruction = `Bạn là một tiểu thuyết gia AI bậc thầy, một Quản trò (Game Master - GM) cho một game nhập vai text-based. Nhiệm vụ của bạn là viết chương mở đầu thật chi tiết, sống động, dài tối thiểu 1000 từ và tuyệt đối không tóm tắt.
+    const gmInstruction = `Bạn là một tiểu thuyết gia AI bậc thầy, một Quản trò (Game Master - GM) cho một game nhập vai text-based. Nhiệm vụ của bạn là viết chương mở đầu thật chi tiết, sống động, dài tối thiểu 1000 từ và tuyệt đối không tóm tắt.
     ${getGameMasterSystemInstruction(config)}`;
+
+    const tagInstructions = getTagInstructions();
+
     const pronounPayload = buildPronounPayload(config.storyContext.genre);
     const timePayload = buildTimePayload(config.storyContext.genre);
     const nsfwPayload = buildNsfwPayload(config);
     const lengthDirective = getResponseLengthDirective(config.aiResponseLength);
 
-    const prompt = `Hãy bắt đầu cuộc phiêu lưu!
+    const gameContextPrompt = `Hãy bắt đầu cuộc phiêu lưu!
 
 Đây là toàn bộ thông tin về thế giới và nhân vật chính mà bạn sẽ quản lý:
 ${JSON.stringify(config, null, 2)}
@@ -77,7 +80,7 @@ ${timePayload}
 1.  **VIẾT TRUYỆN:** Viết một đoạn văn mở đầu thật chi tiết, sâu sắc và lôi cuốn như một tiểu thuyết gia. ${lengthDirective}
     *   Thiết lập không khí, giới thiệu nhân vật trong một tình huống cụ thể, và gợi mở cốt truyện.
     *   Sử dụng các thẻ định dạng (<entity>, <important>, <thought>...) trong lời kể một cách tự nhiên.
-2.  **ĐỊNH DẠNG DỮ LIỆU:** Sau khi viết xong, hãy tuân thủ nghiêm ngặt các quy tắc trong ${getTagInstructions()}
+2.  **ĐỊNH DẠNG DỮ LIỆU:** Sau khi viết xong, hãy tuân thủ nghiêm ngặt các quy tắc đã được cung cấp ở trên (trong phần SYSTEM & FORMATTING RULES).
     *   BẮT BUỘC khởi tạo TOÀN BỘ chỉ số của nhân vật bằng các thẻ \`PLAYER_STATS_INIT\`.
     *   BẮT BUỘC tạo 5 cấp bậc danh vọng (\`REPUTATION_TIERS_SET\`) phù hợp với thế giới.
     *   BẮT BUỘC quyết định thời gian bắt đầu logic (\`WORLD_TIME_SET\`) dựa trên thể loại, bối cảnh, và **LUẬT THỜI GIAN** đã cung cấp.
@@ -86,13 +89,25 @@ ${timePayload}
 
 **OUTPUT:** Phản hồi của bạn PHẢI là một chuỗi văn bản thô (raw string) duy nhất, bao gồm cả phần tường thuật và phần thẻ dữ liệu.`;
     
-    return { prompt, systemInstruction };
+    const fullPrompt = `${gmInstruction}
+
+--- SYSTEM & FORMATTING RULES ---
+${tagInstructions}
+--- END OF SYSTEM & FORMATTING RULES ---
+
+--- GAME CONTEXT & TASK ---
+${gameContextPrompt}`;
+
+    return { prompt: fullPrompt, systemInstruction: undefined };
 };
 
 export const getNextTurnPrompt = (gameState: GameState, fullContext: any, relevantKnowledge: string, relevantMemories: string) => {
     const { worldConfig, history, worldTime, reputation, reputationTiers, character } = gameState;
-    const systemInstruction = `Bạn là một tiểu thuyết gia AI bậc thầy, một Quản trò (Game Master - GM). Nhiệm vụ của bạn là viết tiếp câu chuyện một cách chi tiết, sống động, dài tối thiểu 1000 từ và tuyệt đối không tóm tắt, dựa trên hành động mới nhất của người chơi.
+    const gmInstruction = `Bạn là một tiểu thuyết gia AI bậc thầy, một Quản trò (Game Master - GM). Nhiệm vụ của bạn là viết tiếp câu chuyện một cách chi tiết, sống động, dài tối thiểu 1000 từ và tuyệt đối không tóm tắt, dựa trên hành động mới nhất của người chơi.
     ${getGameMasterSystemInstruction(worldConfig)}`;
+
+    const tagInstructions = getTagInstructions();
+
     const pronounPayload = buildPronounPayload(worldConfig.storyContext.genre);
     const reputationPayload = buildReputationPayload();
     const nsfwPayload = buildNsfwPayload(worldConfig);
@@ -105,7 +120,7 @@ export const getNextTurnPrompt = (gameState: GameState, fullContext: any, releva
 
     const lengthDirective = getResponseLengthDirective(worldConfig.aiResponseLength);
     
-    const prompt = `--- BỐI CẢNH TOÀN DIỆN ---
+    const gameContextPrompt = `--- BỐI CẢNH TOÀN DIỆN ---
 *   **Thông tin Cốt lõi:**
     ${JSON.stringify({
         worldConfig: { storyContext: worldConfig.storyContext, difficulty: worldConfig.difficulty, coreRules: worldConfig.coreRules, temporaryRules: worldConfig.temporaryRules, aiResponseLength: worldConfig.aiResponseLength },
@@ -140,14 +155,23 @@ ${pronounPayload}
     *   Áp dụng "GIAO THỨC MỞ RỘNG HÀNH ĐỘNG" để miêu tả chi tiết.
     *   Sử dụng các thẻ định dạng (<entity>, <important>...) trong lời kể.
     *   Nếu có thực thể mới xuất hiện, hãy áp dụng quy tắc "ONE-SHOT GENERATION".
-2.  **ĐỊNH DẠNG DỮ LIỆU:** Sau khi viết xong, hãy tuân thủ nghiêm ngặt các quy tắc trong ${getTagInstructions()}
+2.  **ĐỊNH DẠNG DỮ LIỆU:** Sau khi viết xong, hãy tuân thủ nghiêm ngặt các quy tắc đã được cung cấp ở trên (trong phần SYSTEM & FORMATTING RULES).
     *   BẮT BUỘC tạo 4 gợi ý hành động (\`SUGGESTION\`) đa dạng.
     *   BẮT BUỘC ước tính thời gian trôi qua và xuất thẻ \`TIME_PASSED\`.
     *   Thêm các thẻ cập nhật khác (PLAYER_STATS_UPDATE, ITEM_ADD, ITEM_REMOVE,...) nếu có thay đổi trong lượt này.
 
 **OUTPUT:** Phản hồi của bạn PHẢI là một chuỗi văn bản thô (raw string) duy nhất.`;
 
-    return { prompt, systemInstruction };
+    const fullPrompt = `${gmInstruction}
+
+--- SYSTEM & FORMATTING RULES ---
+${tagInstructions}
+--- END OF SYSTEM & FORMATTING RULES ---
+
+--- GAME CONTEXT & TASK ---
+${gameContextPrompt}`;
+
+    return { prompt: fullPrompt, systemInstruction: undefined };
 };
 
 export const getGenerateReputationTiersPrompt = (genre: string) => {
