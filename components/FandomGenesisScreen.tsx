@@ -162,12 +162,15 @@ const FandomGenesisScreen: React.FC<FandomGenesisScreenProps> = ({ onBack }) => 
     try {
         const workNameFromSummary = selectedSummary.name.replace(/^tom_tat_|\.txt$/gi, '').replace(/_/g, ' ');
 
-        for (let i = 0; i < arcsToProcess.length; i++) {
-            const arcName = arcsToProcess[i];
-            setArcProcessingProgress(prev => ({ ...prev, current: i + 1, currentArcName: arcName }));
+        // FIX: Replaced the standard for loop with a for...of loop for better type inference,
+        // which resolves the TypeScript error where `arcName` was incorrectly inferred as `unknown`.
+        let processedCount = 0;
+        for (const arcName of arcsToProcess) {
+            processedCount++;
+            setArcProcessingProgress(prev => ({ ...prev, current: processedCount, currentArcName: arcName }));
             
             const textContent = await aiService.generateFandomGenesis(selectedSummary.content, arcName, workNameFromSummary, authorName);
-            const fileName = `${workNameFromSummary.replace(/[\s/\\?%*:|"<>]/g, '_')}_${(arcName as string).replace(/[\s/\\?%*:|"<>]/g, '_')}.txt`;
+            const fileName = `${workNameFromSummary.replace(/[\s/\\?%*:|"<>]/g, '_')}_${arcName.replace(/[\s/\\?%*:|"<>]/g, '_')}.txt`;
             await fandomFileService.saveFandomFile(fileName, textContent);
             await refreshSavedFiles();
         }

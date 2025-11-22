@@ -81,7 +81,7 @@ function createDetailedErrorFromResponse(candidate: any, safetySettings: SafetyS
 
     switch (finishReason) {
         case 'SAFETY':
-            console.error(`Gemini API ${responseType} response blocked due to safety settings.`, { finishReason, safetyRatings });
+            console.warn(`Gemini API ${responseType} response blocked due to safety settings.`, { finishReason, safetyRatings });
             let blockDetails = "Lý do: Bộ lọc an toàn.";
             if (safetyRatings && safetyRatings.length > 0) {
                 const blockedCategories = safetyRatings.filter((r: any) => r.blocked).map((r: any) => r.category).join(', ');
@@ -123,15 +123,16 @@ export async function generate(prompt: string, systemInstruction?: string): Prom
     const MAX_RETRIES = Math.max(keys.length, 3);
     let lastError: Error | null = null;
   
+    const finalContents = systemInstruction ? `${systemInstruction}\n\n---\n\n${prompt}` : prompt;
+
     for (let i = 0; i < MAX_RETRIES; i++) {
       try {
         const aiInstance = getAiInstance();
   
         const response = await aiInstance.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: prompt,
+            contents: finalContents,
             config: {
-                systemInstruction,
                 safetySettings: activeSafetySettings as unknown as SafetySetting[],
                 maxOutputTokens: perfSettings.maxOutputTokens,
                 thinkingConfig: { thinkingBudget: perfSettings.thinkingBudget }
@@ -142,7 +143,7 @@ export async function generate(prompt: string, systemInstruction?: string): Prom
   
         if (!response.text) {
             lastError = createDetailedErrorFromResponse(candidate, safetySettings, false);
-            console.error(`Gemini API returned no text on attempt ${i + 1}.`, { finishReason: candidate?.finishReason, safetyRatings: candidate?.safetyRatings });
+            console.warn(`Gemini API returned no text on attempt ${i + 1}.`, { finishReason: candidate?.finishReason, safetyRatings: candidate?.safetyRatings });
             continue;
         }
   
@@ -180,15 +181,16 @@ export async function generateJson<T>(prompt: string, schema: any, systemInstruc
     const MAX_RETRIES = Math.max(keys.length, 3);
     let lastError: Error | null = null;
   
+    const finalContents = systemInstruction ? `${systemInstruction}\n\n---\n\n${prompt}` : prompt;
+
     for (let i = 0; i < MAX_RETRIES; i++) {
       try {
         const aiInstance = getAiInstance();
         
         const response = await aiInstance.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: finalContents,
             config: {
-                systemInstruction,
                 responseMimeType: "application/json",
                 responseSchema: schema,
                 safetySettings: activeSafetySettings as unknown as SafetySetting[],
@@ -202,7 +204,7 @@ export async function generateJson<T>(prompt: string, schema: any, systemInstruc
   
         if (!jsonString) {
             lastError = createDetailedErrorFromResponse(candidate, safetySettings, true);
-            console.error(`Gemini API returned no JSON text on attempt ${i + 1}.`, { finishReason: candidate?.finishReason, safetyRatings: candidate?.safetyRatings });
+            console.warn(`Gemini API returned no JSON text on attempt ${i + 1}.`, { finishReason: candidate?.finishReason, safetyRatings: candidate?.safetyRatings });
             continue;
         }
         
@@ -261,10 +263,8 @@ export async function generateEmbedding(text: string): Promise<number[]> {
             const aiInstance = getAiInstance(); // Rotates key
             const result = await aiInstance.models.embedContent({
                 model: "text-embedding-004",
-// FIX: The parameter name for the content to be embedded is 'contents', not 'content'.
                 contents: text,
             });
-// FIX: The response object contains an array of embeddings under the 'embeddings' property. Since a single string is passed, the result is the first element of this array.
             const embedding = result.embeddings[0];
             if (embedding?.values) {
                 return embedding.values;
